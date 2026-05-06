@@ -50,15 +50,46 @@ export class TestActionExecutor implements IActionExecutor<TradingExecutionConte
     return this.#executedActions;
   }
 
+  /**
+   * Resolve JsonLogic `{ "var": "key" }` expressions found in action parameters
+   * against the execution context. Only resolves top-level parameters whose value
+   * is a plain object containing a `var` property. Non-JsonLogic values pass through
+   * unchanged.
+   */
+  #resolveParams(
+    params: Record<string, unknown>,
+    context: TradingExecutionContext,
+  ): Record<string, unknown> {
+    const resolved: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (
+        value !== null &&
+        typeof value === 'object' &&
+        !Array.isArray(value) &&
+        'var' in value &&
+        typeof (value as Record<string, unknown>)['var'] === 'string'
+      ) {
+        const varName = (value as Record<string, string>)['var'];
+        resolved[key] = context[varName];
+      } else {
+        resolved[key] = value;
+      }
+    }
+    return resolved;
+  }
+
   async execute(
     action: ActionDefinition,
     context: TradingExecutionContext,
   ): Promise<ActionExecutionResult> {
     this.#executedActions.push(action);
 
+    // Resolve JsonLogic `{ "var": "key" }` expressions in parameters against context
+    const params = this.#resolveParams(action.parameters, context);
+
     switch (action.actionRef as ActionType) {
       case ActionType.MOVE_STOP_LOSS: {
-        const newSL: number = action.parameters['newStopPrice'] as number;
+        const newSL: number = params['newStopPrice'] as number;
         const result = this.#broker.updatePositionStopLoss(context.positionId, newSL);
         if (!result.success) {
           return { success: false, error: result.reason };
@@ -67,7 +98,7 @@ export class TestActionExecutor implements IActionExecutor<TradingExecutionConte
       }
 
       case ActionType.PARTIAL_CLOSE: {
-        const { quantity, percentage } = action.parameters as {
+        const { quantity, percentage } = params as {
           quantity?: number;
           percentage?: number;
         };
@@ -103,12 +134,18 @@ export class TestActionExecutor implements IActionExecutor<TradingExecutionConte
       }
 
       case ActionType.PLACE_ORDER: {
-        // Phase 2 limitation: PLACE_ORDER is not wired to the broker.
-        // The action parameters do not uniformly carry all fields required by
-        // SimulatedPlatformPosition.submitOrder (side, type, quantity, symbol).
+        const orderType = params['type'] as string | undefined;
+
+        if (orderType === 'close_position') {
+          const result = await this.#broker.closePosition(context.positionId);
+          if (!result.success) {
+            return { success: false, error: result.reason };
+          }
+          return { success: true };
+        }
+
+        // Other PLACE_ORDER types: not wired to the broker.
         // The action is recorded in executedActions for assertion purposes.
-        // Full implementation deferred to Phase 4.
-        console.warn('[TestActionExecutor] PLACE_ORDER recorded but not executed against broker (Phase 2 limit)');
         return { success: true, data: { deferred: true } };
       }
 

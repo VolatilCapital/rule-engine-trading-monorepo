@@ -14,7 +14,7 @@
  *   .run();
  * ```
  */
-import { type HarnessConfig, type OpenPositionOpts } from '../harness/RuleScenarioHarness.js';
+import { RuleScenarioHarness, type HarnessConfig, type OpenPositionOpts } from '../harness/RuleScenarioHarness.js';
 import { ActionType } from '@volatil/rule-engine-trading';
 import type { RuleTemplate } from 'rule-engine-monorepo/rule-engine';
 /**
@@ -24,6 +24,12 @@ import type { RuleTemplate } from 'rule-engine-monorepo/rule-engine';
 export declare class ScenarioBuilder {
     #private;
     constructor(description: string);
+    /**
+     * Access the underlying harness after `run()` has been called.
+     * Useful for fine-grained assertions (e.g. counting specific actions).
+     * Returns `null` if `run()` has not been called yet.
+     */
+    get harness(): RuleScenarioHarness | null;
     /**
      * Configure the simulated broker platform.
      * Must be called before any other step that requires broker state.

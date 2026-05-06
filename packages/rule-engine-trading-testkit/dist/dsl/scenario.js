@@ -27,8 +27,17 @@ export class ScenarioBuilder {
     #description;
     #platformConfig = null;
     #steps = [];
+    #harness = null;
     constructor(description) {
         this.#description = description;
+    }
+    /**
+     * Access the underlying harness after `run()` has been called.
+     * Useful for fine-grained assertions (e.g. counting specific actions).
+     * Returns `null` if `run()` has not been called yet.
+     */
+    get harness() {
+        return this.#harness;
     }
     /**
      * Configure the simulated broker platform.
@@ -85,6 +94,7 @@ export class ScenarioBuilder {
     async run() {
         assert.ok(this.#platformConfig !== null, `[scenario: ${this.#description}] .platform() must be called before .run()`);
         const harness = new RuleScenarioHarness(this.#platformConfig);
+        this.#harness = harness;
         for (const step of this.#steps) {
             switch (step.kind) {
                 case 'openPosition':

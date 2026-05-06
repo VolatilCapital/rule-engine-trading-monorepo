@@ -44,9 +44,19 @@ export class ScenarioBuilder {
   readonly #description: string;
   #platformConfig: HarnessConfig | null = null;
   readonly #steps: Step[] = [];
+  #harness: RuleScenarioHarness | null = null;
 
   constructor(description: string) {
     this.#description = description;
+  }
+
+  /**
+   * Access the underlying harness after `run()` has been called.
+   * Useful for fine-grained assertions (e.g. counting specific actions).
+   * Returns `null` if `run()` has not been called yet.
+   */
+  get harness(): RuleScenarioHarness | null {
+    return this.#harness;
   }
 
   /**
@@ -115,6 +125,7 @@ export class ScenarioBuilder {
     );
 
     const harness = new RuleScenarioHarness(this.#platformConfig!);
+    this.#harness = harness;
 
     for (const step of this.#steps) {
       switch (step.kind) {

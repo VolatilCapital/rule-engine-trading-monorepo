@@ -194,6 +194,7 @@ export class RuleScenarioHarness {
             elapsedMinutes,
             peakR: this.#peakR,
             drawdownFromPeakR: Math.max(0, this.#peakR - currentR),
+            entryPrice,
             facts: {},
             patterns: {},
         };
