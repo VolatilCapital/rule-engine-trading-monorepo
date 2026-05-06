@@ -1,5 +1,5 @@
 {
-  "name": "rule-engine-trading",
+  "name": "@volatil/rule-engine-trading",
   "version": "1.0.0",
   "type": "module",
   "description": "Trading rule definitions — templates, actions, conditions, registry, and schemas for rule-engine",
@@ -10,7 +10,8 @@
     }
   },
   "scripts": {
-    "build": "rimraf dist && tsc && tsup",
+    "build": "rimraf dist bundle && tsc && tsup",
+    "type-check": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
     "clean": "rimraf dist bundle"

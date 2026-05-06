@@ -1,0 +1,1 @@
+{"version":3,"file":"public-api.d.ts","sourceRoot":"","sources":["../src/public-api.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAGH,OAAO,EAAE,QAAQ,EAAE,eAAe,EAAE,MAAM,mBAAmB,CAAC;AAG9D,OAAO,EAAE,mBAAmB,EAAE,MAAM,kCAAkC,CAAC;AACvE,YAAY,EAAE,aAAa,EAAE,gBAAgB,EAAE,mBAAmB,EAAE,MAAM,kCAAkC,CAAC;AAG7G,OAAO,EAAE,kBAAkB,EAAE,MAAM,iCAAiC,CAAC;AACrE,YAAY,EAAE,uBAAuB,EAAE,MAAM,iCAAiC,CAAC"}
