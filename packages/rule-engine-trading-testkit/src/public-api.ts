@@ -13,3 +13,7 @@ export type { HarnessConfig, OpenPositionOpts, TradingContextFacts } from './har
 // Executor
 export { TestActionExecutor } from './harness/TestActionExecutor.js';
 export type { TradingExecutionContext } from './harness/TestActionExecutor.js';
+
+// Clock port
+export { TestClock, systemClock } from './harness/Clock.js';
+export type { Clock } from './harness/Clock.js';

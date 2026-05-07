@@ -21,6 +21,7 @@ import {
 import type { Position } from '@volatil/simulated-platform';
 
 import { TestActionExecutor, type TradingExecutionContext } from './TestActionExecutor.js';
+import { systemClock, type Clock } from './Clock.js';
 
 /** Minimal set of facts the ContextProvider exposes to rule conditions. */
 export interface TradingContextFacts {
@@ -44,6 +45,11 @@ export interface HarnessConfig {
   symbol: string;
   leverage: number;
   balance: number;
+  /**
+   * Optional time port. Defaults to `systemClock` (real Date.now()).
+   * Pass a `TestClock` to drive `elapsedMinutes` deterministically.
+   */
+  clock?: Clock;
 }
 
 export interface OpenPositionOpts {
@@ -82,6 +88,7 @@ export class RuleScenarioHarness {
   readonly #executor: TestActionExecutor;
   readonly #evaluator: JsonLogicConditionEvaluator<TradingExecutionContext>;
   readonly #executionService: RuleExecutionService<TradingExecutionContext>;
+  readonly #clock: Clock;
 
   #positionId: string | null = null;
   #entryPrice: number | null = null;
@@ -97,6 +104,7 @@ export class RuleScenarioHarness {
 
   constructor(config: HarnessConfig) {
     this.#symbol = config.symbol;
+    this.#clock = config.clock ?? systemClock;
 
     this.#broker = new SimulatedPlatformPosition({
       symbols: [
@@ -136,7 +144,7 @@ export class RuleScenarioHarness {
     // Price must be set before submitting the order so the broker has a price.
     this.#lastBid = opts.entry;
     this.#lastAsk = opts.entry;
-    this.#broker.onPriceTick({ symbol: this.#symbol, bid: opts.entry, ask: opts.entry, timestamp: Date.now() });
+    this.#broker.onPriceTick({ symbol: this.#symbol, bid: opts.entry, ask: opts.entry, timestamp: this.#clock.now() });
 
     const result = await this.#broker.submitOrder({
       symbol: this.#symbol,
@@ -151,7 +159,7 @@ export class RuleScenarioHarness {
 
     this.#positionId = result.positionId;
     this.#entryPrice = opts.entry;
-    this.#openedAt = Date.now();
+    this.#openedAt = this.#clock.now();
     this.#peakR = 0;
 
     if (opts.sl !== undefined) {
@@ -189,7 +197,7 @@ export class RuleScenarioHarness {
   async priceTo(price: number): Promise<void> {
     this.#lastBid = price;
     this.#lastAsk = price;
-    this.#broker.onPriceTick({ symbol: this.#symbol, bid: price, ask: price, timestamp: Date.now() });
+    this.#broker.onPriceTick({ symbol: this.#symbol, bid: price, ask: price, timestamp: this.#clock.now() });
     await this.tick();
   }
 
@@ -272,7 +280,7 @@ export class RuleScenarioHarness {
       this.#peakR = currentR;
     }
 
-    const elapsedMs = this.#openedAt !== null ? Date.now() - this.#openedAt : 0;
+    const elapsedMs = this.#openedAt !== null ? this.#clock.now() - this.#openedAt : 0;
     const elapsedMinutes = elapsedMs / 60_000;
 
     const pos = this.#openPosition();

@@ -29,6 +29,7 @@ type Step =
   | { kind: 'attachRule'; template: RuleTemplate; params?: Record<string, unknown> }
   | { kind: 'priceTo'; price: number }
   | { kind: 'setPatterns'; patterns: Record<string, boolean> }
+  | { kind: 'advanceTime'; minutes: number }
   | { kind: 'expectStopLossAt'; price: number; tolerance?: number }
   | { kind: 'expectTakeProfitAt'; price: number; tolerance?: number }
   | { kind: 'expectActionExecuted'; actionType: ActionType };
@@ -100,6 +101,18 @@ export class ScenarioBuilder {
   }
 
   /**
+   * Advance the harness clock by `minutes`. Requires the platform to have been
+   * configured with a `TestClock`; otherwise this is a no-op on the real clock.
+   *
+   * Note: this only moves time forward — the next tick will recompute
+   * `elapsedMinutes` against the new clock value.
+   */
+  advanceTime(minutes: number): this {
+    this.#steps.push({ kind: 'advanceTime', minutes });
+    return this;
+  }
+
+  /**
    * Assert that the current SL equals `price` (within optional `tolerance`).
    * Evaluated at the point in the sequence where it appears.
    */
@@ -154,6 +167,16 @@ export class ScenarioBuilder {
         case 'setPatterns':
           harness.setPatterns(step.patterns);
           break;
+
+        case 'advanceTime': {
+          const clock = this.#platformConfig?.clock;
+          assert.ok(
+            clock !== undefined && 'advance' in clock && typeof (clock as { advance: unknown }).advance === 'function',
+            `[scenario: ${this.#description}] .advanceTime() requires a TestClock passed via .platform({ clock: new TestClock() })`,
+          );
+          (clock as { advance: (ms: number) => void }).advance(step.minutes * 60_000);
+          break;
+        }
 
         case 'expectStopLossAt': {
           const sl = harness.currentSL;
