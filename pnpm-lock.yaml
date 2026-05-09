@@ -21,8 +21,8 @@ importers:
         specifier: ^2.0.5
         version: 2.0.5
       rule-engine-monorepo:
-        specifier: github:VolatilCapital/rule-engine-monorepo
-        version: git+https://git@github.com:VolatilCapital/rule-engine-monorepo.git#d2846a81f413f3fc8d2df1975beb71e636306347
+        specifier: github:VolatilCapital/rule-engine-monorepo#7e93f02
+        version: git+https://git@github.com:VolatilCapital/rule-engine-monorepo.git#7e93f02
     devDependencies:
       rimraf:
         specifier: ^6.1.3
@@ -46,8 +46,8 @@ importers:
         specifier: ^10.6.0
         version: 10.6.0
       rule-engine-monorepo:
-        specifier: github:VolatilCapital/rule-engine-monorepo
-        version: git+https://git@github.com:VolatilCapital/rule-engine-monorepo.git#d2846a81f413f3fc8d2df1975beb71e636306347
+        specifier: github:VolatilCapital/rule-engine-monorepo#7e93f02
+        version: git+https://git@github.com:VolatilCapital/rule-engine-monorepo.git#7e93f02
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -815,8 +815,8 @@ packages:
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
 
-  rule-engine-monorepo@git+https://git@github.com:VolatilCapital/rule-engine-monorepo.git#d2846a81f413f3fc8d2df1975beb71e636306347:
-    resolution: {commit: d2846a81f413f3fc8d2df1975beb71e636306347, repo: git@github.com:VolatilCapital/rule-engine-monorepo.git, type: git}
+  rule-engine-monorepo@git+https://git@github.com:VolatilCapital/rule-engine-monorepo.git#7e93f02:
+    resolution: {commit: 7e93f02, repo: git@github.com:VolatilCapital/rule-engine-monorepo.git, type: git}
     version: 1.0.0
     engines: {npm: please-use-pnpm, yarn: please-use-pnpm}
 
@@ -1585,7 +1585,7 @@ snapshots:
       '@rollup/rollup-win32-x64-msvc': 4.60.3
       fsevents: 2.3.3
 
-  rule-engine-monorepo@git+https://git@github.com:VolatilCapital/rule-engine-monorepo.git#d2846a81f413f3fc8d2df1975beb71e636306347: {}
+  rule-engine-monorepo@git+https://git@github.com:VolatilCapital/rule-engine-monorepo.git#7e93f02: {}
 
   siginfo@2.0.0: {}
 
