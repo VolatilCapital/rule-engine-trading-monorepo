@@ -4,7 +4,6 @@ import { TimeBasedStopTemplateParams } from './timeBasedStop.js';
 import { MaxDrawdownFromPeakTemplateParams } from './maxDrawdownFromPeak.js';
 import { CancelPendingOnPriceLevelTemplateParams } from './cancelPendingOnPriceLevel.js';
 import { PartialCloseAtPriceTemplateParams } from './partialCloseAtPrice.js';
-import { TrailingStopParams } from './trailingStop.js';
 /**
  * Template categories for rule classification.
  */
@@ -79,7 +78,13 @@ interface PatternExitFlatParams {
     timeframe?: string;
     ruleId?: string;
 }
-export declare const TRAILING_STOP_TEMPLATE: TemplateDefinition<TrailingStopParams>;
+interface TrailingStopFlatParams {
+    distanceValue: number;
+    distanceUnit: Unit;
+    activationValue: number;
+    activationUnit: Unit;
+}
+export declare const TRAILING_STOP_TEMPLATE: TemplateDefinition<TrailingStopFlatParams>;
 export declare const SL_BREAKEVEN_TEMPLATE: TemplateDefinition<SLBreakevenFlatParams>;
 export declare const LOCK_IN_PROFIT_STOP_TEMPLATE: TemplateDefinition<LockInFlatParams>;
 export declare const TP_TEMPLATE: TemplateDefinition<TPFlatParams>;

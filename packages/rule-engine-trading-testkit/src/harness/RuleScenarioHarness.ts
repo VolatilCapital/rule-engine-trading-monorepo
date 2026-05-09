@@ -27,6 +27,7 @@ import {
   type TrailingStopParams,
   lockInProfitStopParamsMap,
   type LockInProfitStopTemplateParams,
+  PROFIT_FIELD,
   type Unit,
 } from '@volatil/rule-engine-trading';
 
@@ -443,24 +444,50 @@ export class RuleScenarioHarness {
     ) {
       // riskPerUnit is signed: positive for BUY (entry > initialSL), negative for SELL
       const riskPerUnit = entryPrice - initialSL;
+      const distance = trailingParams.distance;
+      const activation = trailingParams.activation;
 
-      // Activation is stateful: once currentR reaches activationR, it stays active.
-      // This ensures the trailing continues protecting gains even if profit dips.
+      // Activation gating dispatched on activation.unit via PROFIT_FIELD.
+      // Stickiness preserved via #activatedRuleIds: once met, stays met.
       const alreadyActivated = ruleId !== undefined && this.#activatedRuleIds.has(ruleId);
-      const activationMet =
-        alreadyActivated ||
-        trailingParams.activationR === undefined ||
-        currentR >= trailingParams.activationR;
+      let activationMet: boolean;
+      if (alreadyActivated || activation === undefined) {
+        activationMet = true;
+      } else {
+        const field = PROFIT_FIELD[activation.unit];
+        const currentForActivation =
+          field === 'currentR'
+            ? currentR
+            : field === 'currentPctFromEntry'
+              ? currentPctFromEntry
+              : field === 'currentPriceMove'
+                ? currentPriceMove
+                : Number.NEGATIVE_INFINITY;
+        activationMet = currentForActivation >= activation.value;
+      }
 
       // Persist activation state when threshold is first crossed.
-      if (activationMet && !alreadyActivated && trailingParams.activationR !== undefined) {
+      if (activationMet && !alreadyActivated && activation !== undefined) {
         this.#activatedRuleIds.add(ruleId!);
       }
 
-      // Candidate new SL: entry + (currentR - distance) * riskPerUnit
-      // For BUY: trails below current price by distance*R
-      // For SELL: trails above current price by distance*R (riskPerUnit is negative)
-      const candidateSL = entryPrice + (currentR - trailingParams.distance) * riskPerUnit;
+      // Candidate SL dispatch on distance.unit.
+      //   R       → entry + (currentR − distance.value) × riskPerUnit
+      //              (BUY: riskPerUnit > 0 → trails below price; SELL: riskPerUnit < 0 → above)
+      //   percent → currentPrice × (1 − sign × distance.value / 100)
+      //   price   → currentPrice − sign × distance.value
+      let candidateSL: number;
+      switch (distance.unit) {
+        case 'R':
+          candidateSL = entryPrice + (currentR - distance.value) * riskPerUnit;
+          break;
+        case 'percent':
+          candidateSL = currentPrice * (1 - (sign * distance.value) / 100);
+          break;
+        case 'price':
+          candidateSL = currentPrice - sign * distance.value;
+          break;
+      }
 
       // Current SL from the broker (fallback to initialSL if unset)
       const currentSL = pos?.stopLoss?.toNumber() ?? initialSL;

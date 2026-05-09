@@ -2,7 +2,7 @@
 title: 'Multi-unit parameters — Phase A: foundation + static templates'
 type: 'feature'
 created: '2026-05-09'
-status: 'in-progress'
+status: 'done'
 baseline_commit: 'e420ef9'
 context:
   - '{project-root}/packages/rule-engine-trading/src/'

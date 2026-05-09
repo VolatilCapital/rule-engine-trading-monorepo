@@ -561,19 +561,20 @@ function createPartialCloseAtPriceTemplate(params) {
 import { RuleTemplate as RuleTemplate11, AtomicCondition as AtomicCondition5, Operator as Operator5 } from "rule-engine-monorepo/rule-engine";
 var trailingStopParamsMap = /* @__PURE__ */ new WeakMap();
 function createTrailingStopTemplate(params) {
-  const { distance, activationR } = params;
-  if (distance <= 0) {
-    throw new Error(`distance must be greater than 0 (got ${distance})`);
-  }
-  if (activationR !== void 0 && activationR <= 0) {
-    throw new Error(`activationR must be greater than 0 (got ${activationR})`);
+  const { distance, activation } = params;
+  assertMeasurement("distance", distance);
+  if (activation !== void 0) {
+    assertMeasurement("activation", activation);
   }
   const condition = AtomicCondition5.create("trailingShouldExecute", Operator5.EQUAL, 1, "trailing_should_execute");
   const action = createMoveStopLossAction({
     newStopPrice: { var: "trailingNewSL" }
   });
   const template = RuleTemplate11.create(condition, [action], [], true);
-  trailingStopParamsMap.set(template, { distance, activationR });
+  const stored = { distance };
+  if (activation !== void 0)
+    stored.activation = activation;
+  trailingStopParamsMap.set(template, stored);
   return template;
 }
 
@@ -590,28 +591,50 @@ function readMeasurement(source, name) {
 var TRAILING_STOP_TEMPLATE = {
   id: "trailing-stop",
   name: "Trailing Stop",
-  description: "Dynamically trails the stop loss at a fixed R-distance below the current price. Activates immediately or after an optional activation threshold.",
+  description: "Dynamically trails the stop loss at a configurable distance from the current price. Distance and activation may use independent units (R, percent, or price). Activates immediately when activationValue \u2264 0.",
   category: "stop-loss",
   maturity: "lab",
   parameters: [
     {
-      name: "distance",
+      name: "distanceValue",
       type: "number",
       default: 0.5,
       min: 0.1,
       max: 10,
-      description: "Trailing distance in R multiples (> 0)"
+      description: "Trailing distance value (> 0)"
     },
     {
-      name: "activationR",
+      name: "distanceUnit",
+      type: "string",
+      default: "R",
+      description: "Unit of the trailing distance",
+      options: [...UNIT_OPTIONS]
+    },
+    {
+      name: "activationValue",
       type: "number",
       default: 1,
-      min: 0.5,
+      min: 0,
       max: 20,
-      description: "Optional R threshold before trailing activates (> 0 if provided)"
+      description: "Profit-from-entry threshold before trailing arms (0 = activate immediately)"
+    },
+    {
+      name: "activationUnit",
+      type: "string",
+      default: "R",
+      description: "Unit of the activation threshold",
+      options: [...UNIT_OPTIONS]
     }
   ],
-  create: createTrailingStopTemplate
+  create: (flat) => {
+    const params = {
+      distance: { value: flat.distanceValue, unit: flat.distanceUnit }
+    };
+    if (flat.activationValue > 0) {
+      params.activation = { value: flat.activationValue, unit: flat.activationUnit };
+    }
+    return createTrailingStopTemplate(params);
+  }
 };
 var SL_BREAKEVEN_TEMPLATE = {
   id: "sl-breakeven",

@@ -43,9 +43,12 @@ const SELL_ENTRY = 1.0500;
 const SELL_INITIAL_SL = 1.0520;
 
 // Trailing stop presets used in tests (local, NOT exported from public-api)
-const TRAILING_BUY_05R = createTrailingStopTemplate({ distance: 0.5 });
-const TRAILING_BUY_05R_ACT_1R = createTrailingStopTemplate({ distance: 0.5, activationR: 1 });
-const TRAILING_SELL_05R = createTrailingStopTemplate({ distance: 0.5 });
+const TRAILING_BUY_05R = createTrailingStopTemplate({ distance: { value: 0.5, unit: 'R' } });
+const TRAILING_BUY_05R_ACT_1R = createTrailingStopTemplate({
+  distance: { value: 0.5, unit: 'R' },
+  activation: { value: 1, unit: 'R' },
+});
+const TRAILING_SELL_05R = createTrailingStopTemplate({ distance: { value: 0.5, unit: 'R' } });
 
 // ──────────────────────────────────────────────────────────────────────────────
 // BUY scenarios, no activation

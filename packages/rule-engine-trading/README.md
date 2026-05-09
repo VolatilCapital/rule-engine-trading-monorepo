@@ -34,29 +34,53 @@ and a positive value (`opts.allowZero` lifts the floor to `>= 0`).
 ### Trailing Stop
 
 Continuous rule (first `isRecurring: true` template) that dynamically moves the
-stop loss as price advances, maintaining a constant R-distance from the current
-price.
+stop loss as price advances. Both `distance` (the geometric step the SL trails
+the price by) and the optional `activation` threshold (profit-from-entry that
+must be reached before trailing arms) are `Measurement` values and may use
+**independent units** — `distance` is a geometric offset, `activation` is a
+profit-from-entry gate.
 
 ```ts
 import { createTrailingStopTemplate } from '@volatil/rule-engine-trading';
 
 // Trailing 0.5R, activates immediately
-const trailing = createTrailingStopTemplate({ distance: 0.5 });
+const trailing = createTrailingStopTemplate({
+  distance: { value: 0.5, unit: 'R' },
+});
 
 // Trailing 0.5R, activates only after 1R profit
-const trailingAct = createTrailingStopTemplate({ distance: 0.5, activationR: 1 });
+const trailingAct = createTrailingStopTemplate({
+  distance: { value: 0.5, unit: 'R' },
+  activation: { value: 1, unit: 'R' },
+});
+
+// Trailing 0.5 % of price, no activation
+const trailingPct = createTrailingStopTemplate({
+  distance: { value: 0.5, unit: 'percent' },
+});
+
+// Trailing 0.3 in price, mixed-unit gate (arms once profit reaches 1R)
+const trailingMixed = createTrailingStopTemplate({
+  distance: { value: 0.3, unit: 'price' },
+  activation: { value: 1, unit: 'R' },
+});
 ```
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `distance` | `number` | Yes | Trailing distance in R multiples (> 0) |
-| `activationR` | `number` | No | Activation threshold in R multiples. Trailing starts immediately if omitted. Once activated, stays activated permanently. |
+| `distance` | `Measurement` (`R`, `percent`, `price`) | Yes | Trailing distance from the current price (`value > 0`). |
+| `activation` | `Measurement` (`R`, `percent`, `price`) | No | Profit-from-entry threshold that must be reached before trailing arms. Omit to start immediately. Once armed, stays armed permanently (sticky). May use a different unit than `distance`. |
 
 **Behavior:**
-- At each tick, computes a candidate SL at `entry + (currentR - distance) × riskPerUnit`
-- Moves SL only when the candidate is more favorable than the current SL (BUY: higher, SELL: lower)
-- Stays `ACTIVE` after each execution (`isRecurring: true`) — re-evaluates on the next tick
-- The `trailingShouldExecute` context field gates execution (1 = fire, 0 = skip)
+- Adapter computes the candidate SL per `distance.unit`:
+  - `R`:       `entry + (currentR − distance.value) × riskPerUnit`
+  - `percent`: `currentPrice × (1 − sign × distance.value / 100)`
+  - `price`:   `currentPrice − sign × distance.value`
+  where `sign = +1` for BUY, `−1` for SELL.
+- Activation is dispatched on `activation.unit` against the matching `PROFIT_FIELD` (`currentR`, `currentPctFromEntry`, or `currentPriceMove`) and is sticky once met.
+- Moves SL only when the candidate is more favorable than the current SL (BUY: higher, SELL: lower). Favorability is unit-agnostic — it depends on the trade direction, not on `distance.unit`.
+- Stays `ACTIVE` after each execution (`isRecurring: true`) — re-evaluates on the next tick.
+- The `trailingShouldExecute` context field gates execution (1 = fire, 0 = skip).
 
 **Context helpers** (populated by the harness or production context builder):
 

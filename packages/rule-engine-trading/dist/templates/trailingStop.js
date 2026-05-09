@@ -3,16 +3,24 @@
  * @description Template factory for trailing stop rules.
  *
  * The trailing stop moves the stop loss dynamically as price advances,
- * maintaining a constant R-distance from the current price.
+ * placing the SL at a configurable `distance` from the current price/profit.
  *
- * All price/SL calculations are delegated to the execution context
- * via the `trailingNewSL` and `trailingShouldExecute` context fields,
- * which the testkit harness (and production rule execution service) must populate.
+ * Both `distance` (the geometric step the SL trails the price by) and the
+ * optional `activation` threshold (profit-from-entry that must be reached
+ * before trailing arms) are `Measurement` values. They may use independent
+ * units (`R`, `percent`, or `price`) because they describe orthogonal things:
+ * `distance` is a geometric offset, `activation` is a profit-from-entry gate.
+ *
+ * The template stays pure — it emits a single `AtomicCondition` on
+ * `trailingShouldExecute` and a `MOVE_STOP_LOSS` action that reads the
+ * pre-computed `trailingNewSL`. All unit-aware arithmetic lives in the
+ * adapter (the testkit harness or the production context builder).
  *
  * The template uses `isRecurring = true` so the rule stays ACTIVE after
  * each successful execution and can continue trailing on subsequent ticks.
  */
 import { RuleTemplate, AtomicCondition, Operator } from 'rule-engine-monorepo/rule-engine';
+import { assertMeasurement } from '../domain/Measurement.js';
 import { createMoveStopLossAction } from '../actions/moveStopLoss.js';
 /**
  * WeakMap that stores the TrailingStopParams for each created RuleTemplate.
@@ -35,22 +43,35 @@ export const trailingStopParamsMap = new WeakMap();
  * - `trailingShouldExecute`: 0 | 1 — 1 when activation is met AND new SL is favorable
  * - `trailingNewSL`: number — the new SL price to move to
  *
+ * Throws synchronously when:
+ * - `distance` is not a well-formed positive `Measurement`.
+ * - `activation` is provided and not a well-formed positive `Measurement`.
+ *
  * @example
  * ```ts
  * // Trailing 0.5R, no activation
- * const template = createTrailingStopTemplate({ distance: 0.5 });
+ * const template = createTrailingStopTemplate({
+ *   distance: { value: 0.5, unit: 'R' },
+ * });
  *
- * // Trailing 0.5R, only activates at 1R profit
- * const template = createTrailingStopTemplate({ distance: 0.5, activationR: 1 });
+ * // Trailing 0.5%, only activates at +1% profit
+ * const template = createTrailingStopTemplate({
+ *   distance: { value: 0.5, unit: 'percent' },
+ *   activation: { value: 1, unit: 'percent' },
+ * });
+ *
+ * // Mixed units: trail by 0.3 in price, arm once profit reaches 1R
+ * const template = createTrailingStopTemplate({
+ *   distance: { value: 0.3, unit: 'price' },
+ *   activation: { value: 1, unit: 'R' },
+ * });
  * ```
  */
 export function createTrailingStopTemplate(params) {
-    const { distance, activationR } = params;
-    if (distance <= 0) {
-        throw new Error(`distance must be greater than 0 (got ${distance})`);
-    }
-    if (activationR !== undefined && activationR <= 0) {
-        throw new Error(`activationR must be greater than 0 (got ${activationR})`);
+    const { distance, activation } = params;
+    assertMeasurement('distance', distance);
+    if (activation !== undefined) {
+        assertMeasurement('activation', activation);
     }
     // Condition: trailingShouldExecute === 1
     // The context builder is responsible for computing this value.
@@ -62,7 +83,10 @@ export function createTrailingStopTemplate(params) {
     // isRecurring = true: rule stays ACTIVE after each successful execution
     const template = RuleTemplate.create(condition, [action], [], true);
     // Store params in WeakMap for harness context builder retrieval
-    trailingStopParamsMap.set(template, { distance, activationR });
+    const stored = { distance };
+    if (activation !== undefined)
+        stored.activation = activation;
+    trailingStopParamsMap.set(template, stored);
     return template;
 }
 //# sourceMappingURL=trailingStop.js.map
