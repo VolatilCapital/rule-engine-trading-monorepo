@@ -31,6 +31,8 @@ export {
 } from './templates/predefinedTemplates.js';
 export {
   createTrailingStopTemplate,
+  /** @internal Used by testkit harness to retrieve TrailingStopParams from a RuleTemplate. */
+  trailingStopParamsMap,
   type TrailingStopParams,
 } from './templates/trailingStop.js';
 export {

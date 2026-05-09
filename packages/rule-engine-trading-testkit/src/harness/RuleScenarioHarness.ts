@@ -22,6 +22,7 @@ import type { Position } from '@volatil/simulated-platform';
 
 import { TestActionExecutor, type TradingExecutionContext } from './TestActionExecutor.js';
 import { systemClock, type Clock } from './Clock.js';
+import { trailingStopParamsMap, type TrailingStopParams } from '@volatil/rule-engine-trading';
 
 /** Minimal set of facts the ContextProvider exposes to rule conditions. */
 export interface TradingContextFacts {
@@ -112,6 +113,21 @@ export class RuleScenarioHarness {
 
   /** Active rule instance IDs — populated by attachRule(). */
   readonly #ruleIds: string[] = [];
+
+  /**
+   * Maps rule instance id → TrailingStopParams for rules created with
+   * createTrailingStopTemplate. Populated in attachRule() via the WeakMap
+   * stored in @volatil/rule-engine-trading.
+   */
+  readonly #trailingParams = new Map<string, TrailingStopParams>();
+
+  /**
+   * Rule instance IDs whose trailing stop activation has been met at least once.
+   * Once activated, a trailing stop stays activated even if currentR drops below
+   * the activation threshold (per product spec: "le trailing continue de protéger
+   * les gains acquis").
+   */
+  readonly #activatedRuleIds = new Set<string>();
 
   constructor(config: HarnessConfig) {
     this.#symbol = config.symbol;
@@ -213,11 +229,20 @@ export class RuleScenarioHarness {
    * Attach a rule template to the open position.
    * Instantiates a RuleInstance, saves it to the repository, and registers
    * its ID so that tick() will evaluate it.
+   *
+   * If the template was created by createTrailingStopTemplate, the params
+   * are retrieved from the WeakMap and stored for context population.
    */
   async attachRule(template: RuleTemplate, _params?: Record<string, unknown>): Promise<void> {
     const instance = RuleInstance.create(template);
     await this.#repository.save(instance);
     this.#ruleIds.push(instance.id);
+
+    // Detect trailing stop templates via the WeakMap exported from the factory.
+    const trailingParams = trailingStopParamsMap.get(template);
+    if (trailingParams !== undefined) {
+      this.#trailingParams.set(instance.id, trailingParams);
+    }
   }
 
   /**
@@ -242,13 +267,14 @@ export class RuleScenarioHarness {
 
   /**
    * Evaluate all attached rules against the current broker state.
-   * Call this manually if you drive the price feed without using priceTo().
+   * Each rule gets its own context so trailing stop helpers can be
+   * computed per-rule using the rule's specific TrailingStopParams.
    */
   async tick(): Promise<void> {
     if (this.#ruleIds.length === 0) return;
 
-    const ctx = this.#buildContext();
     for (const ruleId of this.#ruleIds) {
+      const ctx = this.#buildContext(ruleId);
       await this.#executionService.executeRule(ruleId, ctx);
     }
   }
@@ -296,7 +322,7 @@ export class RuleScenarioHarness {
     return this.#broker.getOpenPositions().find(p => p.id === this.#positionId);
   }
 
-  #buildContext(): TradingExecutionContext {
+  #buildContext(ruleId?: string): TradingExecutionContext {
     const currentPrice = this.#lastBid;
     const entryPrice = this.#entryPrice ?? currentPrice;
     const initialSL = this.#initialSL;
@@ -325,6 +351,56 @@ export class RuleScenarioHarness {
           )
         : {};
 
+    // ── Trailing stop helpers ─────────────────────────────────────────────────
+    // Computed only when ruleId maps to a trailing-stop rule.
+    // Default: trailingShouldExecute = 0, trailingNewSL = NaN (not applicable).
+    let trailingNewSL = NaN;
+    let trailingShouldExecute: 0 | 1 = 0;
+
+    const trailingParams = ruleId !== undefined ? this.#trailingParams.get(ruleId) : undefined;
+    if (
+      trailingParams !== undefined &&
+      initialSL !== null &&
+      Math.abs(entryPrice - initialSL) > 0 &&
+      currentR >= 0 // only trail when in profit territory (guards adverse-price artifacts)
+    ) {
+      // riskPerUnit is signed: positive for BUY (entry > initialSL), negative for SELL
+      const riskPerUnit = entryPrice - initialSL;
+
+      // Activation is stateful: once currentR reaches activationR, it stays active.
+      // This ensures the trailing continues protecting gains even if profit dips.
+      const alreadyActivated = ruleId !== undefined && this.#activatedRuleIds.has(ruleId);
+      const activationMet =
+        alreadyActivated ||
+        trailingParams.activationR === undefined ||
+        currentR >= trailingParams.activationR;
+
+      // Persist activation state when threshold is first crossed.
+      if (activationMet && !alreadyActivated && trailingParams.activationR !== undefined) {
+        this.#activatedRuleIds.add(ruleId!);
+      }
+
+      // Candidate new SL: entry + (currentR - distance) * riskPerUnit
+      // For BUY: trails below current price by distance*R
+      // For SELL: trails above current price by distance*R (riskPerUnit is negative)
+      const candidateSL = entryPrice + (currentR - trailingParams.distance) * riskPerUnit;
+
+      // Current SL from the broker (fallback to initialSL if unset)
+      const currentSL = pos?.stopLoss?.toNumber() ?? initialSL;
+
+      // Favorable check (side-aware via sign of riskPerUnit):
+      // BUY (riskPerUnit > 0): candidateSL must be ABOVE currentSL
+      // SELL (riskPerUnit < 0): candidateSL must be BELOW currentSL
+      const isFavorable =
+        riskPerUnit > 0 ? candidateSL > currentSL : candidateSL < currentSL;
+
+      if (activationMet && isFavorable) {
+        trailingShouldExecute = 1;
+        trailingNewSL = candidateSL;
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const ctx: TradingExecutionContext = {
       symbol: this.#symbol,
       quantity,
@@ -336,6 +412,8 @@ export class RuleScenarioHarness {
       entryPrice,
       facts: {},
       patterns: { ...this.#patterns },
+      trailingNewSL,
+      trailingShouldExecute,
       ...lockInStops,
     };
     if (this.#positionId) ctx.positionId = this.#positionId;
