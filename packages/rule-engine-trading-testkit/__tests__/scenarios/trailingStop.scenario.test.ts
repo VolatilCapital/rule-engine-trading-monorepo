@@ -102,9 +102,10 @@ describe('trailingStop — BUY, no activation', () => {
   /**
    * Scenario 3 — price favorable then adverse: SL should NOT decrease.
    * 1.0520 → R=1.0 → newSL=1.0510  (first move)
-   * 1.0510 → R=0.5 → trailingShouldExecute should be FALSE (newSL would be 1.0500 < 1.0510)
+   * 1.0515 → R=0.75 → trailingShouldExecute = FALSE (candidateSL=1.0505 < currentSL=1.0510)
    *
-   * After the adverse tick, SL must remain locked at 1.0510 (no downward move).
+   * The pullback price (1.0515) is intentionally above the SL (1.0510) so the
+   * simulated broker does not trigger a stop-out.
    */
   it('should not decrease SL when price pulls back (lock preservation)', async () => {
     const sc = scenario('BUY trailing 0.5R: adverse tick does not lower SL')
@@ -113,7 +114,7 @@ describe('trailingStop — BUY, no activation', () => {
       .attachRule(TRAILING_BUY_05R)
       .priceTo(1.0520) // R=1.0, newSL=1.0510 → SL moves to 1.0510
       .expectStopLossAt(1.0510, 0.000015)
-      .priceTo(1.0510) // R=0.5, newSL would be 1.0500 — should NOT fire
+      .priceTo(1.0515) // R=0.75, pullback above SL — candidateSL=1.0505 not favorable
       .expectStopLossAt(1.0510, 0.000015); // SL stays locked at 1.0510
 
     await sc.run();
@@ -172,7 +173,10 @@ describe('trailingStop — BUY, with activationR=1', () => {
    * currentR drops back below activationR.
    *
    * 1.0530 → R=1.5 → newSL = 1.0500 + (1.5 - 0.5) * 0.002 = 1.0520
-   * 1.0510 → R=0.5 → profit below activationR, but SL stays locked at 1.0520
+   * 1.0525 → R=1.25 → trailingShouldExecute = FALSE (candidateSL=1.0515 < currentSL=1.0520)
+   *
+   * The pullback price (1.0525) is intentionally above the SL (1.0520) so the
+   * simulated broker does not trigger a stop-out.
    */
   it('should keep locked SL when profit drops below activationR after first activation', async () => {
     const sc = scenario('BUY trailing 0.5R, activation=1: SL locked after activation')
@@ -181,7 +185,7 @@ describe('trailingStop — BUY, with activationR=1', () => {
       .attachRule(TRAILING_BUY_05R_ACT_1R)
       .priceTo(1.0530) // R=1.5, newSL=1.0520
       .expectStopLossAt(1.0520, 0.000015)
-      .priceTo(1.0510) // R=0.5, below activationR — no downward move
+      .priceTo(1.0525) // R=1.25, drop below activationR — no downward move
       .expectStopLossAt(1.0520, 0.000015); // SL stays at 1.0520
 
     await sc.run();
