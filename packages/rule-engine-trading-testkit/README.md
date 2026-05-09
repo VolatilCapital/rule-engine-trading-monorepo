@@ -79,7 +79,7 @@ Après `.run()`, `sc.harness` expose le `RuleScenarioHarness` sous-jacent pour l
 ### TestActionExecutor
 
 - **`PLACE_ORDER` général** — seul le cas `type: 'close_position'` est branché sur le broker. Tout autre type d'ordre est loggé sans exécution réelle.
-- **`SCALE_OUT` / `START_TRAILING_STOP`** — non mappés (pas d'API broker correspondante dans `SimulatedPlatformPosition`).
+- **`SCALE_OUT` / `START_TRAILING_STOP` (deprecated)** — non mappés (pas d'API broker correspondante dans `SimulatedPlatformPosition`). `START_TRAILING_STOP` est remplacé par le template `trailing-stop` qui utilise `MOVE_STOP_LOSS` avec `isRecurring: true`.
 - **`CANCEL_POSITION`** — polymorphe : annule la pending order si `context.pendingOrderId` est présent, sinon ferme la position via `closePosition(positionId)`. Les autres cas (`MOVE_STOP_LOSS`, `PARTIAL_CLOSE`, `PLACE_ORDER` close_position) requièrent `positionId` et retournent une erreur explicite sinon.
 
 ### Harness / Calculs
@@ -90,6 +90,7 @@ Après `.run()`, `sc.harness` expose le `RuleScenarioHarness` sous-jacent pour l
 - **`patterns` context** — peuplé via `.setPatterns({ ... })` sur le DSL ou `harness.setPatterns(...)`. Les templates pattern-based (`patternBasedExit`) lisent les flags via JsonLogic en notation pointée (ex: `patterns.bearish`).
 - **`attachRule(params)`** — le paramètre `params` n'est pas transmis au template. Les templates reçoivent tous leurs paramètres via leur factory (ex: `createMoveSLToBreakevenTemplate({ thresholdR: 1 })`).
 - **`lockInStopPrice_<R>R` pré-calculé** — le contexte expose `lockInStopPrice_0.5R`, `_1R`, `_1.5R`, `_2R`, `_2.5R`, `_3R`, `_4R`, `_5R` (BUY uniquement). Pour des R hors liste, étendre le tableau dans `RuleScenarioHarness#buildContext`.
+- **`trailingNewSL` / `trailingShouldExecute`** — le contexte expose ces champs pour les règles trailing-stop. Le calcul est side-aware (BUY/SELL via signe de `riskPerUnit`), avec état d'activation mémorisé (une fois le seuil atteint, l'activation persiste). Les autres règles reçoivent `trailingShouldExecute = 0`, `trailingNewSL = NaN`.
 
 ## Templates couverts
 
@@ -106,5 +107,6 @@ Après `.run()`, `sc.harness` expose le `RuleScenarioHarness` sous-jacent pour l
 | `patternBasedExit` (PATTERN_EXIT_LONG_BEARISH) | Close BUY sur `patterns.bearish=true`, garde-fou anti re-trigger, no-trigger sans pattern | `patternBasedExit.scenario.test.ts` |
 | `timeBasedStop` (TIME_STOP_30MIN_1R) | Close BUY si pas +1R après 30 min, no-trigger sous délai, no-trigger si +1R atteint | `timeBasedStop.scenario.test.ts` |
 | `cancelPendingOnPriceLevel` | Annule pending LIMIT BUY si prix franchit le niveau d'invalidation, garde-fou anti re-trigger | `cancelPendingOnPriceLevel.scenario.test.ts` |
+| `trailingStop` | Trailing stop 0.5R (BUY/SELL, activation optionnelle, récurrence) — 8 scénarios | `trailingStop.scenario.test.ts` |
 
-**Tous les templates publics sont couverts.** 11 templates / 12 fichiers de scénarios (smoke inclus) / 25 tests.
+**Tous les templates publics sont couverts.** 12 templates / 13 fichiers de scénarios (smoke inclus) / 33 tests.
