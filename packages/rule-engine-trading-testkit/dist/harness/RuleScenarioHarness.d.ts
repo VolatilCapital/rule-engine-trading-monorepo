@@ -14,12 +14,36 @@ export interface TradingContextFacts {
     currentPrice: number;
     /** R-multiple: (currentPrice - entryPrice) / (entryPrice - stopLoss). Positive = profit. */
     currentR: number;
+    /**
+     * Side-aware, profit-positive percent move from entry (1.5 = +1.5 %).
+     * Positive when the trade is winning.
+     */
+    currentPctFromEntry: number;
+    /**
+     * Side-aware, profit-positive absolute price move from entry.
+     * Positive when the trade is winning.
+     */
+    currentPriceMove: number;
     /** Elapsed time since position opened, in minutes */
     elapsedMinutes: number;
     /** Peak R reached during the trade lifetime */
     peakR: number;
     /** Drawdown from peak R (peakR - currentR, floored at 0) */
     drawdownFromPeakR: number;
+    /**
+     * Peak percent-from-entry reached during the trade lifetime.
+     * Side-aware, profit-positive. Always ≥ 0 by construction.
+     */
+    peakPctFromEntry: number;
+    /**
+     * Peak absolute price move from entry reached during the trade lifetime.
+     * Side-aware, profit-positive. Always ≥ 0 by construction.
+     */
+    peakPriceMove: number;
+    /** Drawdown from the percent peak (`max(0, peakPctFromEntry − currentPctFromEntry)`). */
+    drawdownFromPeakPct: number;
+    /** Drawdown from the price peak (`max(0, peakPriceMove − currentPriceMove)`). */
+    drawdownFromPeakPrice: number;
     /** Arbitrary per-rule facts (e.g. slMoved, partialSlDone) */
     facts: Record<string, boolean>;
     /** Pattern detection flags (populated externally if needed) */

@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@volatil/rule-engine-trading": "workspace:*",
-    "rule-engine-monorepo": "github:VolatilCapital/rule-engine-monorepo#4f1e4ca",
+    "rule-engine-monorepo": "github:VolatilCapital/rule-engine-monorepo#b30d7575",
     "decimal.js": "^10.6.0"
   },
   "peerDependencies": {
@@ -29,7 +29,7 @@
     "@volatil/simulated-platform": "link:../../../simulated-platform-monorepo/packages/simulated-platform",
     "@types/node": "^22.0.0",
     "rimraf": "^6.1.3",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.5"
   },
   "engines": {

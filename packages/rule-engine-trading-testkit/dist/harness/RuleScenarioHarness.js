@@ -7,7 +7,21 @@ import { RuleInstance, RuleExecutionService, JsonLogicConditionEvaluator, InMemo
 import { SimulatedPlatformPosition, SinglePlatformRegistry, } from '@volatil/simulated-platform';
 import { TestActionExecutor } from './TestActionExecutor.js';
 import { systemClock } from './Clock.js';
-import { trailingStopParamsMap } from '@volatil/rule-engine-trading';
+import { trailingStopParamsMap, lockInProfitStopParamsMap, PROFIT_FIELD, } from '@volatil/rule-engine-trading';
+/**
+ * Per-unit suffix used in the `lockInStopPrice_<value><unitSuffix>` context key.
+ * Mirrors the convention in `lockInProfitStop.ts`.
+ */
+const UNIT_SUFFIX = {
+    R: 'R',
+    percent: 'pct',
+    price: 'price',
+};
+/** Builds the canonical `lockInStopPrice_*` key for a given lock-in measurement. */
+function lockInStopPriceKey(lockIn) {
+    const valuePart = String(lockIn.value).replace(/\./g, '_');
+    return `lockInStopPrice_${valuePart}${UNIT_SUFFIX[lockIn.unit]}`;
+}
 /**
  * Provides an integrated test environment for trading rule scenarios.
  *
@@ -41,7 +55,17 @@ export class RuleScenarioHarness {
     #entryPrice = null;
     #initialSL = null;
     #openedAt = null;
+    /** Trade side. `+1` for BUY (long), `-1` for SELL (short). */
+    #sideSign = 1;
     #peakR = 0;
+    /**
+     * Most-favorable price seen during the current trade lifetime.
+     * - LONG (sign=+1): the highest price seen so far.
+     * - SHORT (sign=-1): the lowest price seen so far.
+     * Initialised to `entryPrice` on `openPosition()` and reset on each new
+     * position. `null` while no position is open.
+     */
+    #peakPrice = null;
     #lastBid = 0;
     #lastAsk = 0;
     #patterns = {};
@@ -53,6 +77,14 @@ export class RuleScenarioHarness {
      * stored in @volatil/rule-engine-trading.
      */
     #trailingParams = new Map();
+    /**
+     * Maps rule instance id → LockInProfitStopTemplateParams for rules created
+     * with createLockInProfitStopTemplate. Populated in attachRule() via the
+     * WeakMap exported from @volatil/rule-engine-trading. The harness walks this
+     * map in #buildContext to pre-fill one `lockInStopPrice_<value><unitSuffix>`
+     * key per registered lock-in rule.
+     */
+    #lockInRules = new Map();
     /**
      * Rule instance IDs whose trailing stop activation has been met at least once.
      * Once activated, a trailing stop stays activated even if currentR drops below
@@ -105,7 +137,11 @@ export class RuleScenarioHarness {
         this.#positionId = result.positionId;
         this.#entryPrice = opts.entry;
         this.#openedAt = this.#clock.now();
+        this.#sideSign = opts.side === 'BUY' ? 1 : -1;
         this.#peakR = 0;
+        // Reset peak-price tracking on every new position. Subsequent ticks update
+        // it side-awarely in #buildContext.
+        this.#peakPrice = opts.entry;
         if (opts.sl !== undefined) {
             const slResult = this.#broker.updatePositionStopLoss(result.positionId, opts.sl);
             if (!slResult.success) {
@@ -155,6 +191,12 @@ export class RuleScenarioHarness {
         const trailingParams = trailingStopParamsMap.get(template);
         if (trailingParams !== undefined) {
             this.#trailingParams.set(instance.id, trailingParams);
+        }
+        // Detect lock-in profit stop templates so we can pre-fill the right
+        // `lockInStopPrice_*` context key in #buildContext.
+        const lockInParams = lockInProfitStopParamsMap.get(template);
+        if (lockInParams !== undefined) {
+            this.#lockInRules.set(instance.id, lockInParams);
         }
     }
     /**
@@ -227,6 +269,11 @@ export class RuleScenarioHarness {
         const currentPrice = this.#lastBid;
         const entryPrice = this.#entryPrice ?? currentPrice;
         const initialSL = this.#initialSL;
+        const sign = this.#sideSign;
+        // Side-aware, profit-positive price move and percent from entry.
+        // sign = +1 for BUY (long), -1 for SELL (short).
+        const currentPriceMove = sign * (currentPrice - entryPrice);
+        const currentPctFromEntry = entryPrice !== 0 ? (currentPriceMove / entryPrice) * 100 : 0;
         let currentR = 0;
         if (initialSL !== null && Math.abs(entryPrice - initialSL) > 0) {
             currentR = (currentPrice - entryPrice) / (entryPrice - initialSL);
@@ -234,16 +281,53 @@ export class RuleScenarioHarness {
         if (currentR > this.#peakR) {
             this.#peakR = currentR;
         }
+        // Side-aware peak-price tracking: update to the most favorable price seen.
+        // Lazy init guards against ticks emitted before openPosition() (defensive).
+        if (this.#peakPrice === null)
+            this.#peakPrice = entryPrice;
+        if (sign === 1
+            ? currentPrice > this.#peakPrice
+            : currentPrice < this.#peakPrice) {
+            this.#peakPrice = currentPrice;
+        }
+        // Profit-positive peak quantities by construction of #peakPrice + sign.
+        const peakPriceMove = sign * (this.#peakPrice - entryPrice);
+        const peakPctFromEntry = entryPrice !== 0 ? (peakPriceMove / entryPrice) * 100 : 0;
+        const drawdownFromPeakPct = Math.max(0, peakPctFromEntry - currentPctFromEntry);
+        const drawdownFromPeakPrice = Math.max(0, peakPriceMove - currentPriceMove);
         const elapsedMs = this.#openedAt !== null ? this.#clock.now() - this.#openedAt : 0;
         const elapsedMinutes = elapsedMs / 60_000;
         const pos = this.#openPosition();
         const quantity = pos ? pos.quantity.toNumber() : 0;
-        const lockInStops = initialSL !== null && Math.abs(entryPrice - initialSL) > 0
-            ? Object.fromEntries([0.5, 1, 1.5, 2, 2.5, 3, 4, 5].map(r => [
-                `lockInStopPrice_${r}R`,
-                entryPrice + r * (entryPrice - initialSL),
-            ]))
-            : {};
+        // Pre-compute one `lockInStopPrice_<value><unitSuffix>` per registered
+        // lock-in rule. The price formula depends on the lock-in unit:
+        //   R       → entry + sign × value × |entry − initialSL|
+        //   percent → entry × (1 + sign × value / 100)
+        //   price   → entry + sign × value
+        const lockInStops = {};
+        for (const params of this.#lockInRules.values()) {
+            const { lockIn } = params;
+            const key = lockInStopPriceKey(lockIn);
+            let stopPrice;
+            switch (lockIn.unit) {
+                case 'R': {
+                    if (initialSL === null || Math.abs(entryPrice - initialSL) === 0)
+                        continue;
+                    const riskMagnitude = Math.abs(entryPrice - initialSL);
+                    stopPrice = entryPrice + sign * lockIn.value * riskMagnitude;
+                    break;
+                }
+                case 'percent': {
+                    stopPrice = entryPrice * (1 + (sign * lockIn.value) / 100);
+                    break;
+                }
+                case 'price': {
+                    stopPrice = entryPrice + sign * lockIn.value;
+                    break;
+                }
+            }
+            lockInStops[key] = stopPrice;
+        }
         // ── Trailing stop helpers ─────────────────────────────────────────────────
         // Computed only when ruleId maps to a trailing-stop rule.
         // Default: trailingShouldExecute = 0, trailingNewSL = NaN (not applicable).
@@ -257,20 +341,47 @@ export class RuleScenarioHarness {
         ) {
             // riskPerUnit is signed: positive for BUY (entry > initialSL), negative for SELL
             const riskPerUnit = entryPrice - initialSL;
-            // Activation is stateful: once currentR reaches activationR, it stays active.
-            // This ensures the trailing continues protecting gains even if profit dips.
+            const distance = trailingParams.distance;
+            const activation = trailingParams.activation;
+            // Activation gating dispatched on activation.unit via PROFIT_FIELD.
+            // Stickiness preserved via #activatedRuleIds: once met, stays met.
             const alreadyActivated = ruleId !== undefined && this.#activatedRuleIds.has(ruleId);
-            const activationMet = alreadyActivated ||
-                trailingParams.activationR === undefined ||
-                currentR >= trailingParams.activationR;
+            let activationMet;
+            if (alreadyActivated || activation === undefined) {
+                activationMet = true;
+            }
+            else {
+                const field = PROFIT_FIELD[activation.unit];
+                const currentForActivation = field === 'currentR'
+                    ? currentR
+                    : field === 'currentPctFromEntry'
+                        ? currentPctFromEntry
+                        : field === 'currentPriceMove'
+                            ? currentPriceMove
+                            : Number.NEGATIVE_INFINITY;
+                activationMet = currentForActivation >= activation.value;
+            }
             // Persist activation state when threshold is first crossed.
-            if (activationMet && !alreadyActivated && trailingParams.activationR !== undefined) {
+            if (activationMet && !alreadyActivated && activation !== undefined) {
                 this.#activatedRuleIds.add(ruleId);
             }
-            // Candidate new SL: entry + (currentR - distance) * riskPerUnit
-            // For BUY: trails below current price by distance*R
-            // For SELL: trails above current price by distance*R (riskPerUnit is negative)
-            const candidateSL = entryPrice + (currentR - trailingParams.distance) * riskPerUnit;
+            // Candidate SL dispatch on distance.unit.
+            //   R       → entry + (currentR − distance.value) × riskPerUnit
+            //              (BUY: riskPerUnit > 0 → trails below price; SELL: riskPerUnit < 0 → above)
+            //   percent → currentPrice × (1 − sign × distance.value / 100)
+            //   price   → currentPrice − sign × distance.value
+            let candidateSL;
+            switch (distance.unit) {
+                case 'R':
+                    candidateSL = entryPrice + (currentR - distance.value) * riskPerUnit;
+                    break;
+                case 'percent':
+                    candidateSL = currentPrice * (1 - (sign * distance.value) / 100);
+                    break;
+                case 'price':
+                    candidateSL = currentPrice - sign * distance.value;
+                    break;
+            }
             // Current SL from the broker (fallback to initialSL if unset)
             const currentSL = pos?.stopLoss?.toNumber() ?? initialSL;
             // Favorable check (side-aware via sign of riskPerUnit):
@@ -288,9 +399,15 @@ export class RuleScenarioHarness {
             quantity,
             currentPrice,
             currentR,
+            currentPctFromEntry,
+            currentPriceMove,
             elapsedMinutes,
             peakR: this.#peakR,
             drawdownFromPeakR: Math.max(0, this.#peakR - currentR),
+            peakPctFromEntry,
+            peakPriceMove,
+            drawdownFromPeakPct,
+            drawdownFromPeakPrice,
             entryPrice,
             facts: {},
             patterns: { ...this.#patterns },
