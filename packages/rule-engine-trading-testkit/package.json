@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@volatil/rule-engine-trading": "workspace:*",
-    "rule-engine-monorepo": "github:VolatilCapital/rule-engine-monorepo#7539ebc",
+    "rule-engine-monorepo": "github:VolatilCapital/rule-engine-monorepo#e3482ce",
     "decimal.js": "^10.6.0"
   },
   "peerDependencies": {
