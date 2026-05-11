@@ -152,7 +152,7 @@ export const TRAILING_STOP_TEMPLATE: TemplateDefinition<TrailingStopFlatParams> 
   name: 'Trailing Stop',
   description: 'Dynamically trails the stop loss at a configurable distance from the current price. Distance and activation may use independent units (R, percent, or price). Activates immediately when activationValue ≤ 0.',
   category: 'stop-loss',
-  maturity: 'lab',
+  maturity: 'stable',
   parameters: [
     {
       name: 'distanceValue',
@@ -312,7 +312,7 @@ export const FREE_TRADE_TEMPLATE: TemplateDefinition<FreeTradeFlatParams> = {
   name: 'Free Trade',
   description: 'Recover initial risk by partial close at profit threshold',
   category: 'take-profit',
-  maturity: 'lab',
+  maturity: 'stable',
   parameters: [
     {
       name: 'triggerValue',
@@ -482,7 +482,7 @@ export const PATTERN_BASED_EXIT_TEMPLATE: TemplateDefinition<PatternExitFlatPara
   name: 'Pattern-based Exit',
   description: 'Exit on candlestick patterns (bearish for long, bullish for short)',
   category: 'pattern-based',
-  maturity: 'lab',
+  maturity: 'stable',
   parameters: [
     {
       name: 'positionDirection',
