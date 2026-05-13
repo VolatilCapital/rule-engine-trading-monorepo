@@ -17,8 +17,8 @@ import type { RuleTemplate } from 'rule-engine-monorepo/rule-engine';
 import {
   SimulatedPlatformPosition,
   SinglePlatformRegistry,
-} from '@volatil/simulated-platform/simulated-platform';
-import type { Position } from '@volatil/simulated-platform/simulated-platform';
+} from '@volatil/simulated-platform';
+import type { Position } from '@volatil/simulated-platform';
 
 import { TestActionExecutor, type TradingExecutionContext } from './TestActionExecutor.js';
 import { systemClock, type Clock } from './Clock.js';

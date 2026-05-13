@@ -7,7 +7,7 @@
  */
 
 import type { IActionExecutor, ActionExecutionResult, ActionDefinition } from 'rule-engine-monorepo/rule-engine';
-import type { SimulatedPlatformPosition } from '@volatil/simulated-platform/simulated-platform';
+import type { SimulatedPlatformPosition } from '@volatil/simulated-platform';
 import { ActionType } from '@volatil/rule-engine-trading';
 
 /**

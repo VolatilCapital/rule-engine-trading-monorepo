@@ -42,9 +42,6 @@ importers:
       '@volatil/rule-engine-trading':
         specifier: workspace:*
         version: link:../rule-engine-trading
-      decimal.js:
-        specifier: ^10.6.0
-        version: 10.6.0
       rule-engine-monorepo:
         specifier: github:VolatilCapital/rule-engine-monorepo#4f0c2db
         version: git+https://git@github.com:VolatilCapital/rule-engine-monorepo.git#4f0c2dbb0b2680d27fb668792bbaf704efaee135
@@ -56,8 +53,8 @@ importers:
         specifier: ^22.0.0
         version: 22.19.17
       '@volatil/simulated-platform':
-        specifier: github:VolatilCapital/simulated-platform-monorepo#ab879461493bdfc1a4e14391a50cd4f601350e4c
-        version: simulated-platform-monorepo@git+https://git@github.com:VolatilCapital/simulated-platform-monorepo.git#ab879461493bdfc1a4e14391a50cd4f601350e4c
+        specifier: github:VolatilCapital/simulated-platform-monorepo#9da9770
+        version: simulated-platform-monorepo@git+https://git@github.com:VolatilCapital/simulated-platform-monorepo.git#9da97708b8ab7e7f69b33e71d6ecb37b70f1f40a
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3
@@ -601,9 +598,6 @@ packages:
       supports-color:
         optional: true
 
-  decimal.js@10.6.0:
-    resolution: {integrity: sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==}
-
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
@@ -852,8 +846,8 @@ packages:
   siginfo@2.0.0:
     resolution: {integrity: sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==}
 
-  simulated-platform-monorepo@git+https://git@github.com:VolatilCapital/simulated-platform-monorepo.git#ab879461493bdfc1a4e14391a50cd4f601350e4c:
-    resolution: {commit: ab879461493bdfc1a4e14391a50cd4f601350e4c, repo: git@github.com:VolatilCapital/simulated-platform-monorepo.git, type: git}
+  simulated-platform-monorepo@git+https://git@github.com:VolatilCapital/simulated-platform-monorepo.git#9da97708b8ab7e7f69b33e71d6ecb37b70f1f40a:
+    resolution: {commit: 9da97708b8ab7e7f69b33e71d6ecb37b70f1f40a, repo: git@github.com:VolatilCapital/simulated-platform-monorepo.git, type: git}
     version: 1.0.0
 
   source-map-js@1.2.1:
@@ -1372,8 +1366,6 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
-  decimal.js@10.6.0: {}
-
   detect-libc@2.1.2: {}
 
   es-module-lexer@2.1.0: {}
@@ -1624,7 +1616,7 @@ snapshots:
 
   siginfo@2.0.0: {}
 
-  simulated-platform-monorepo@git+https://git@github.com:VolatilCapital/simulated-platform-monorepo.git#ab879461493bdfc1a4e14391a50cd4f601350e4c: {}
+  simulated-platform-monorepo@git+https://git@github.com:VolatilCapital/simulated-platform-monorepo.git#9da97708b8ab7e7f69b33e71d6ecb37b70f1f40a: {}
 
   source-map-js@1.2.1: {}
 
